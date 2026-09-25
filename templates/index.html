@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMT Analysis — Plant Maintenance & Equipment Analytics</title>
+  <link rel="icon" type="image/jpeg" href="/static/images/logo.jpg?v=3">
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js for Visuals -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css?v=9">
+</head>
+<body>
+  <div class="app-layout">
+    
+    <!-- Top Navigation Header -->
+    <header class="navbar">
+      <div class="brand">
+        <img src="/static/images/logo.jpg?v=3" alt="PMT Analysis Logo" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="brand-icon" style="display:none;">⚙️</div>
+        <div>
+          <div class="brand-title">PMT Analysis</div>
+          <div class="brand-subtitle">Plant Maintenance & Equipment Analytics System</div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <span id="liveSyncBadge" class="badge badge-success animate-pulse">🟢 Live Sync (402 Tickets)</span>
+        <button onclick="exportFilteredCSV()" class="btn btn-outline" id="btnExportFiltered" title="Download Excel/CSV of currently filtered tickets">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Export Filtered Excel / CSV
+        </button>
+        <button id="btnRefresh" class="btn btn-primary" onclick="loadDashboardData()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Refresh Data
+        </button>
+      </div>
+    </header>
+
+    <main class="main-content">
+
+      <!-- SECTION 1: EXECUTIVE KPI METRIC CARDS -->
+      <section class="metrics-grid">
+        <!-- 1. Total Tickets -->
+        <div class="kpi-card card-total" id="kpiCardTotal" onclick="filterByKpi('ALL')" title="Click to show all tickets">
+          <div class="kpi-header">
+            <span class="kpi-label">Total Complaints Logged</span>
+            <span class="kpi-icon">📦</span>
+          </div>
+          <div class="kpi-value" id="valTotal">0</div>
+          <div class="kpi-subtext" id="subTotal">All equipment across kitchen units</div>
+        </div>
+
+        <!-- 2. Pending / In Repair -->
+        <div class="kpi-card card-pending" id="kpiCardPending" onclick="filterByKpi('PENDING')" title="Click to filter Pending / In Repair">
+          <div class="kpi-header">
+            <span class="kpi-label">🚨 Pending / In Repair</span>
+            <span class="kpi-icon">⏳</span>
+          </div>
+          <div class="kpi-value text-warning" id="valPending">0</div>
+          <div class="kpi-tags">
+            <span class="tag tag-raised" id="tagRaised">0 Raised</span>
+            <span class="tag tag-assigned" id="tagAssigned">0 Assigned</span>
+            <span class="tag tag-inprog" id="tagInProg">0 In Repair</span>
+          </div>
+        </div>
+
+        <!-- 3. Completed -->
+        <div class="kpi-card card-completed" id="kpiCardCompleted" onclick="filterByKpi('COMPLETED')" title="Click to filter Completed jobs">
+          <div class="kpi-header">
+            <span class="kpi-label">✅ Completed Jobs</span>
+            <span class="kpi-icon">🔧</span>
+          </div>
+          <div class="kpi-value text-primary" id="valCompleted">0</div>
+          <div class="kpi-subtext" id="subCompleted">Repaired & fixed by technicians</div>
+        </div>
+
+        <!-- 4. Verified -->
+        <div class="kpi-card card-verified" id="kpiCardVerified" onclick="filterByKpi('VERIFIED')" title="Click to filter Dual-Verified jobs">
+          <div class="kpi-header">
+            <span class="kpi-label">🛡️ Dual Verified</span>
+            <span class="kpi-icon">✨</span>
+          </div>
+          <div class="kpi-value text-success" id="valVerified">0</div>
+          <div class="kpi-subtext" id="subVerified">Signed by In-Charge & Admin</div>
+        </div>
+
+        <!-- 5. Average Speed to Fix (MTTR) -->
+        <div class="kpi-card card-speed">
+          <div class="kpi-header">
+            <span class="kpi-label">⚡ Avg Time to Fix (MTTR)</span>
+            <span class="kpi-icon">⏱️</span>
+          </div>
+          <div class="kpi-value-sm" id="valMttr">0m</div>
+          <div class="kpi-subtext">Hands-on technician repair time</div>
+        </div>
+
+        <!-- 6. Average Response Delay -->
+        <div class="kpi-card card-delay">
+          <div class="kpi-header">
+            <span class="kpi-label">⏳ Avg Response Delay</span>
+            <span class="kpi-icon">🚀</span>
+          </div>
+          <div class="kpi-value-sm" id="valDelay">0m</div>
+          <div class="kpi-subtext">From ticket raised to repair start</div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: OPERATIONS FILTER PANEL (UPSIDE WITH 4-LEVEL CASCADE) -->
+      <section class="filter-panel-card" id="operationsFilterPanel">
+        <div class="filter-panel-header">
+          <div class="filter-panel-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+            Operations Filter Panel
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="resetOnlyFilters()">🔄 Reset Filters</button>
+        </div>
+
+        <div class="filter-panel-grid">
+          <!-- 1. Kitchen Facility (Level 1) -->
+          <div class="filter-group">
+            <label for="filterKitchen">🏢 Kitchen Facility</label>
+            <select id="filterKitchen" onchange="handleFilterChange('kitchen')">
+              <option value="All Kitchens">All Kitchens</option>
+            </select>
+          </div>
+
+          <!-- 2. Kitchen Zone (Level 2) -->
+          <div class="filter-group">
+            <label for="filterZone">📍 Kitchen Zone</label>
+            <select id="filterZone" onchange="handleFilterChange('zone')">
+              <option value="All Zones">All Zones</option>
+            </select>
+          </div>
+
+          <!-- 3. Area / Section (Level 3) -->
+          <div class="filter-group">
+            <label for="filterArea">🏷️ Area / Section</label>
+            <select id="filterArea" onchange="handleFilterChange('area')">
+              <option value="All Areas">All Areas</option>
+            </select>
+          </div>
+
+          <!-- 4. Machine / Equipment (Level 4) -->
+          <div class="filter-group">
+            <label for="filterEquipment">⚙️ Machine / Asset</label>
+            <select id="filterEquipment" onchange="handleFilterChange('equipment')">
+              <option value="All Equipment">All Equipment</option>
+            </select>
+          </div>
+
+          <!-- 5. Time Window -->
+          <div class="filter-group">
+            <label for="filterTime">📅 Time Window</label>
+            <select id="filterTime" onchange="handleFilterChange('time')">
+              <option value="All Time">All Time</option>
+              <option value="Today">Today (Updated Today)</option>
+              <option value="Yesterday">Yesterday</option>
+              <option value="Last 7 Days">Last 7 Days</option>
+              <option value="Last 30 Days">Last 30 Days</option>
+              <option value="Pending Signoff">🚨 Completed, Awaiting Sign-off</option>
+            </select>
+          </div>
+
+          <!-- 6. Priority -->
+          <div class="filter-group">
+            <label for="filterPriority">⚡ Priority Level</label>
+            <select id="filterPriority" onchange="handleFilterChange('priority')">
+              <option value="All Priorities">All Priorities</option>
+              <option value="HIGH">HIGH (Urgent)</option>
+              <option value="MEDIUM">MEDIUM (Normal)</option>
+              <option value="LOW">LOW</option>
+            </select>
+          </div>
+
+          <!-- 7. Status -->
+          <div class="filter-group">
+            <label for="filterStatus">📌 Ticket Status</label>
+            <select id="filterStatus" onchange="handleFilterChange('status')">
+              <option value="All Statuses">All Statuses</option>
+              <option value="PENDING">🚨 Pending / In Repair</option>
+              <option value="RAISED">⚪ Raised</option>
+              <option value="ASSIGNED">🟠 Assigned</option>
+              <option value="IN_PROGRESS">🟡 In Progress</option>
+              <option value="COMPLETED">✅ Completed</option>
+              <option value="VERIFIED">🛡️ Verified</option>
+            </select>
+          </div>
+
+          <!-- 8. Failure Category -->
+          <div class="filter-group">
+            <label for="filterCategory">🔧 Failure Category</label>
+            <select id="filterCategory" onchange="handleFilterChange('category')">
+              <option value="All Categories">All Categories</option>
+            </select>
+          </div>
+
+          <!-- 9. Search Bar -->
+          <div class="filter-group filter-group-search">
+            <label for="filterSearch">🔍 Live Search</label>
+            <div class="search-input-box">
+              <input type="text" id="filterSearch" placeholder="Search ticket#, machine, zone, area, tech..." oninput="handleFilterChange('search')">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 3: VIEW DIFFERENTIATION SWITCHER (Charts vs. Data) -->
+      <section class="view-switch-bar">
+        <div class="view-switch-tabs">
+          <button class="view-switch-btn active" id="tabBtnAll" onclick="switchMainView('all')">
+            📑 Comprehensive (All-in-One)
+          </button>
+          <button class="view-switch-btn" id="tabBtnCharts" onclick="switchMainView('charts')">
+            📊 Visual Analytics & Charts
+          </button>
+          <button class="view-switch-btn" id="tabBtnData" onclick="switchMainView('data')">
+            📋 Live Data Register (Excel Grid)
+          </button>
+        </div>
+        <div class="view-switch-caption" id="viewSwitchCaption">
+          Showing complete operational intelligence & breakdown register
+        </div>
+      </section>
+
+      <!-- SECTION 4: VISUAL ANALYTICS (GRAPHS & CHARTS) -->
+      <section class="view-section" id="sectionCharts">
+        <div class="section-title-banner">
+          <div class="section-title-text">
+            <span class="section-icon">📊</span>
+            <div>
+              <h3>Visual Maintenance Analytics</h3>
+              <p>Breakdown distribution, machine failure ranking, and technician team velocity</p>
+            </div>
+          </div>
+          <div class="section-banner-actions">
+            <button class="btn btn-sm btn-outline" id="btnDownloadChartsReport" onclick="exportVisualAnalyticsReport()" title="Download high-resolution report of all charts matching active filters">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Graphs Report
+            </button>
+            <span class="badge badge-primary">Dynamic Visuals</span>
+          </div>
+        </div>
+
+        <!-- ROW 1: Core Summary Charts (Visible in All-in-One & Visual Analytics) -->
+        <div class="charts-row">
+          <!-- Chart 1: Top Problem Machines -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Top Problem Machines</div>
+                <div class="chart-caption">Kitchen equipment breaking down most frequently</div>
+              </div>
+              <div class="chart-header-actions">
+                <span class="chart-badge">Asset Ranking</span>
+                <button class="btn-chart-download" onclick="downloadSingleChart('chartTopMachines', 'Top Problem Machines')" title="Download Top Problem Machines chart image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartTopMachines"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: Status Breakdown Donut -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Breakdown Status Distribution</div>
+                <div class="chart-caption">Live breakdown lifecycle status overview</div>
+              </div>
+              <div class="chart-header-actions">
+                <span class="chart-badge">Status</span>
+                <button class="btn-chart-download" onclick="downloadSingleChart('chartStatus', 'Breakdown Status Distribution')" title="Download Status Distribution chart image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartStatus"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 3: Technician Leaderboard -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Technician Team Leaderboard</div>
+                <div class="chart-caption">Resolved vs pending jobs per technician</div>
+              </div>
+              <div class="chart-header-actions">
+                <span class="chart-badge">Leaderboard</span>
+                <button class="btn-chart-download" onclick="downloadSingleChart('chartTechs', 'Technician Team Leaderboard')" title="Download Technician Leaderboard chart image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartTechs"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 2: Extended Visualizations (Displayed in "Visual Analytics & Charts" View) -->
+        <div class="charts-row extended-charts-row" id="extendedChartsRow" style="display: none; margin-top: 16px;">
+          <!-- Chart 4: Hotspots by Zone & Area -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Problem Hotspots (Zone & Area)</div>
+                <div class="chart-caption">Ticket concentration across kitchen zones and areas</div>
+              </div>
+              <div class="chart-header-actions">
+                <span class="chart-badge">Hotspot Analysis</span>
+                <button class="btn-chart-download" onclick="downloadSingleChart('chartHotspots', 'Problem Hotspots (Zone & Area)')" title="Download Hotspots chart image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartHotspots"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 5: Failure Category Breakdown -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Failure Category Distribution</div>
+                <div class="chart-caption">Breakdown classification by category</div>
+              </div>
+              <div class="chart-header-actions">
+                <span class="chart-badge">Categories</span>
+                <button class="btn-chart-download" onclick="downloadSingleChart('chartCategoryBreakdown', 'Failure Category Distribution')" title="Download Category Distribution chart image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartCategoryBreakdown"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 6: MTTR by Priority -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Avg Repair Time (MTTR) by Priority</div>
+                <div class="chart-caption">Hands-on fix duration by severity</div>
+              </div>
+              <div class="chart-header-actions">
+                <span class="chart-badge">Speed to Fix</span>
+                <button class="btn-chart-download" onclick="downloadSingleChart('chartMttrPriority', 'Avg Repair Time by Priority')" title="Download MTTR by Priority chart image">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartMttrPriority"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 5: LIVE DATA REGISTER (EXCEL-LIKE SPREADSHEET) -->
+      <section class="view-section" id="sectionData">
+        <div class="section-title-banner">
+          <div class="section-title-text">
+            <span class="section-icon">📋</span>
+            <div>
+              <h3>Live Breakdown Register (Spreadsheet View)</h3>
+              <p>Timelines, repair start & finish, durations, technician assignments and sign-offs</p>
+            </div>
+          </div>
+          
+          <div class="table-header-actions">
+            <!-- Columns Visibility & Reordering Popover Toggle -->
+            <div class="column-manager-wrapper">
+              <button class="btn btn-sm btn-outline" id="btnColumnToggle" onclick="toggleColumnMenu(event)">
+                ⚙️ Columns (<span id="visibleColumnCounter">20</span>/20)
+              </button>
+              <div class="column-manager-popover" id="columnManagerPopover">
+                <div class="popover-header">
+                  <span>Show, Hide & Reorder Columns</span>
+                  <button class="btn-text-link" onclick="resetColumns()">Reset Layout</button>
+                </div>
+                <div class="popover-tip">Drag columns on table header or use ▲▼ to reorder.</div>
+                <div class="column-checkbox-list" id="columnCheckboxList">
+                  <!-- Dynamically generated column checkboxes and reorder controls -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Dedicated Reset Columns Button -->
+            <button class="btn btn-sm btn-outline" id="btnResetColumns" onclick="resetColumns()" title="Reset column positions and show all columns">
+              ↺ Reset Columns
+            </button>
+
+            <!-- Page Size -->
+            <div class="table-page-size">
+              <label for="pageSizeSelect">Rows:</label>
+              <select id="pageSizeSelect" onchange="handlePageSizeChange()">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="spreadsheet-section">
+          <!-- Table Header & Meta Info -->
+          <div class="table-meta-bar">
+            <div class="table-meta-count">
+              Showing <strong id="visibleCount">0</strong> of <strong id="totalDatasetCount">0</strong> filtered records
+            </div>
+            <div class="table-hint">
+              💡 Tip: Drag & drop column headers to reorder position. Click ✕ to hide. Layout persists across refreshes until reset.
+            </div>
+          </div>
+
+          <!-- Dynamic Reorderable Excel Grid Table -->
+          <div class="excel-table-wrapper">
+            <table class="excel-table" id="ticketsTable">
+              <thead>
+                <tr id="ticketsTheadRow">
+                  <!-- Dynamically rendered reorderable column headers with drag & hide -->
+                </tr>
+              </thead>
+              <tbody id="ticketsTbody">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Controls -->
+          <div class="pagination-bar">
+            <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+            <div class="pagination-btns">
+              <button class="btn btn-sm btn-outline" id="btnPrevPage" onclick="prevPage()">Previous</button>
+              <span class="page-indicator" id="pageNumber">1</span>
+              <button class="btn btn-sm btn-outline" id="btnNextPage" onclick="nextPage()">Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- CENTER ANIMATED TICKET DETAIL POPUP MODAL (REPLACING RIGHT DRAWER) -->
+    <div class="modal-backdrop" id="ticketModalBackdrop" onclick="closeTicketModal()"></div>
+    <div class="modal-dialog-center" id="ticketModalDialog" role="dialog" aria-modal="true">
+      <div class="modal-dialog-header">
+        <div class="modal-header-info">
+          <div class="modal-header-topline">
+            <span class="modal-ticket-badge" id="modalTicketNo">TK-0000</span>
+            <span id="modalStatusBadge" class="status-pill">STATUS</span>
+            <span id="modalPriorityBadge" class="priority-pill">PRIORITY</span>
+            <span id="modalCategoryBadge" class="badge badge-neutral">Category</span>
+          </div>
+          <h2 class="modal-ticket-title" id="modalTitle">Ticket Title</h2>
+        </div>
+        <button class="modal-close-btn" onclick="closeTicketModal()" title="Close details">&times;</button>
+      </div>
+
+      <div class="modal-dialog-body">
+        <!-- Location & Asset Banner -->
+        <div class="modal-location-banner">
+          <div class="location-item">
+            <span class="location-label">Kitchen Facility</span>
+            <strong class="location-val" id="modalKitchen">—</strong>
+          </div>
+          <div class="location-item">
+            <span class="location-label">Kitchen Zone</span>
+            <strong class="location-val" id="modalZone">—</strong>
+          </div>
+          <div class="location-item">
+            <span class="location-label">Area / Section</span>
+            <strong class="location-val" id="modalArea">—</strong>
+          </div>
+          <div class="location-item">
+            <span class="location-label">Machine / Asset</span>
+            <strong class="location-val text-primary" id="modalEquipment">—</strong>
+          </div>
+        </div>
+
+        <!-- Problem & Action Grid -->
+        <div class="modal-section-grid">
+          <div class="modal-card">
+            <div class="modal-card-title">🔍 Root Cause of Issue</div>
+            <div class="modal-card-content" id="modalCause">Under diagnostics</div>
+          </div>
+          <div class="modal-card">
+            <div class="modal-card-title">🛠️ Action Taken by Technician</div>
+            <div class="modal-card-content modal-content-highlight" id="modalAction">Under diagnostics</div>
+          </div>
+        </div>
+
+        <!-- People Involved -->
+        <div class="modal-people-bar">
+          <div class="people-item">
+            <span class="people-label">Reported By:</span>
+            <div class="user-cell" style="margin-top: 4px;">
+              <span class="avatar-circle" id="modalRaiserAvatar">R</span>
+              <strong id="modalRaiser">—</strong>
+            </div>
+          </div>
+          <div class="people-item">
+            <span class="people-label">Assigned Technician:</span>
+            <div class="user-cell" style="margin-top: 4px;">
+              <span class="avatar-circle" id="modalTechAvatar">T</span>
+              <strong id="modalTech">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lifecycle Timestamps, Response Delay & MTTR -->
+        <div class="modal-timeline-card">
+          <div class="modal-card-title">⏱️ Lifecycle Timelines & SLA Durations</div>
+          
+          <!-- Prominent Highlight Callouts for Start Delay, MTTR & Downtime -->
+          <div class="modal-delay-banner" id="modalDelayBanner">
+            <div class="delay-metric-card" id="cardResponseDelay">
+              <div class="delay-metric-icon">⏳</div>
+              <div class="delay-metric-info">
+                <span class="delay-metric-label" id="labelResponseDelay">Start / Response Delay</span>
+                <strong class="delay-metric-val" id="valResponseDelay">—</strong>
+              </div>
+              <span class="delay-metric-badge" id="badgeResponseDelay">Pending</span>
+            </div>
+
+            <div class="delay-metric-card" id="cardMttr">
+              <div class="delay-metric-icon">⚡</div>
+              <div class="delay-metric-info">
+                <span class="delay-metric-label">Time to Fix (Hands-on MTTR)</span>
+                <strong class="delay-metric-val text-primary" id="valMttrDuration">—</strong>
+              </div>
+              <span class="delay-metric-badge" id="badgeMttr">Repair Time</span>
+            </div>
+
+            <div class="delay-metric-card" id="cardDowntime">
+              <div class="delay-metric-icon">🛑</div>
+              <div class="delay-metric-info">
+                <span class="delay-metric-label">Total Breakdown Downtime</span>
+                <strong class="delay-metric-val text-danger" id="valTotalDowntime">—</strong>
+              </div>
+              <span class="delay-metric-badge" id="badgeDowntime">Elapsed</span>
+            </div>
+          </div>
+
+          <!-- 4 Milestone Timeline Boxes -->
+          <div class="timeline-grid">
+            <div class="timeline-box">
+              <span class="tl-label">1. Complaint Raised</span>
+              <div class="tl-val" id="modalTimeRaised">—</div>
+            </div>
+            <div class="timeline-box">
+              <span class="tl-label">2. Tech Assigned</span>
+              <div class="tl-val" id="modalTimeAssign">—</div>
+            </div>
+            <div class="timeline-box">
+              <span class="tl-label">3. Repair Started</span>
+              <div class="tl-val" id="modalTimeStart">—</div>
+            </div>
+            <div class="timeline-box">
+              <span class="tl-label">4. Repair Finished</span>
+              <div class="tl-val" id="modalTimeEnd">—</div>
+            </div>
+          </div>
+
+          <!-- Dual Verification Sign-offs -->
+          <div class="verification-row">
+            <div><span>Kitchen In-Charge Sign-off:</span> <strong id="modalRaiserSign">—</strong></div>
+            <div><span>Maintenance Admin Sign-off:</span> <strong id="modalAdminSign">—</strong></div>
+          </div>
+        </div>
+
+        <!-- Sub Tabs: Spares, Tools & Photos -->
+        <div class="modal-tabs-header">
+          <button class="modal-tab-btn active" id="modalTabBtnPhotos" onclick="switchModalSubTab('photos')">
+            📷 Photo Proofs (<span id="modalPhotosCount">0</span>)
+          </button>
+          <button class="modal-tab-btn" id="modalTabBtnSpares" onclick="switchModalSubTab('spares')">
+            📦 Spare Parts (<span id="modalSparesCount">0</span>)
+          </button>
+          <button class="modal-tab-btn" id="modalTabBtnTools" onclick="switchModalSubTab('tools')">
+            🔧 Tools Issued (<span id="modalToolsCount">0</span>)
+          </button>
+        </div>
+
+        <div class="modal-tab-body">
+          <div id="modalTabPhotos" class="modal-tab-pane active">
+            <div id="modalPhotosList" class="modal-photo-grid">No photo proofs attached.</div>
+          </div>
+
+          <div id="modalTabSpares" class="modal-tab-pane">
+            <div id="modalSparesList">No spare parts consumed for this repair.</div>
+          </div>
+
+          <div id="modalTabTools" class="modal-tab-pane">
+            <div id="modalToolsList">No special workshop tools issued.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- FULLSCREEN PHOTO LIGHTBOX MODAL -->
+    <div class="lightbox-backdrop" id="imageLightbox" onclick="closeImageLightbox()">
+      <div class="lightbox-modal" onclick="event.stopPropagation()">
+        <div class="lightbox-header">
+          <span id="lightboxCaption">Maintenance Proof Fullscreen</span>
+          <button class="lightbox-close" onclick="closeImageLightbox()">&times;</button>
+        </div>
+        <div class="lightbox-body">
+          <img id="lightboxImg" src="" alt="Maintenance Proof Fullscreen" />
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JavaScript -->
+  <script src="/static/js/dashboard.js?v=8"></script>
+</body>
+</html>

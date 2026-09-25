@@ -1,0 +1,11 @@
+.env
+.env.local
+.git
+.gitignore
+__pycache__
+*.pyc
+.system_generated
+scratch/
+*.log
+run.bat
+run_flask.bat

@@ -1,0 +1,25 @@
+# Python & Environment
+.env
+.env.local
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# OS / Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local Scratch & Generated Logs
+.system_generated/
+scratch/
+run.bat
+run_flask.bat
