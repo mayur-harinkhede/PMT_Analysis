@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone, timedelta
-from flask import Flask, render_template, jsonify, request, Response
+from flask import Flask, render_template, jsonify, request, Response, send_from_directory
 
 # Add project root to sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +23,10 @@ app = Flask(
 )
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(os.path.join(BASE_DIR, "static"), filename)
 
 @app.after_request
 def add_no_cache_headers(response):
